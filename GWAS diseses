@@ -11,15 +11,15 @@ library(DT)
 
 # --- 2. GLOBAL DATA / FUNCTIONS ---
 
-# --- UPDATED with diagnostic messages ---
+# This function is now proven to work!
 load_and_clean_gwas_data <- function(filepath, col_map = NULL, delimiter = NULL, trait_name_for_func, study_info_list_for_func) {
   tryCatch({
     message("--- Starting Data Load ---")
     message("File path: ", filepath)
     if (!file.exists(filepath)) {
-        stop(paste("File not found at path:", filepath))
+      stop(paste("File not found at path:", filepath))
     }
-
+    
     message("Step 1: Reading file with fread()...")
     gwas_data_raw <- as_tibble(fread(filepath, header = TRUE, sep = delimiter, stringsAsFactors = FALSE, check.names = FALSE))
     message("Step 1 COMPLETE. Rows read: ", nrow(gwas_data_raw))
@@ -29,9 +29,9 @@ load_and_clean_gwas_data <- function(filepath, col_map = NULL, delimiter = NULL,
       current_names <- names(gwas_data_raw)
       new_names <- current_names
       for(i in seq_along(current_names)){
-          if(current_names[i] %in% names(col_map)){
-              new_names[i] <- col_map[[current_names[i]]]
-          }
+        if(current_names[i] %in% names(col_map)){
+          new_names[i] <- col_map[[current_names[i]]]
+        }
       }
       names(gwas_data_raw) <- new_names
       message("Step 2 COMPLETE.")
@@ -67,8 +67,8 @@ load_and_clean_gwas_data <- function(filepath, col_map = NULL, delimiter = NULL,
     message("Step 3 COMPLETE. Rows after cleaning: ", nrow(gwas_data_cleaned))
     
     if (nrow(gwas_data_cleaned) == 0) {
-        message("No rows remaining after cleaning. Stopping.")
-        return(NULL)
+      message("No rows remaining after cleaning. Stopping.")
+      return(NULL)
     }
     
     message("Step 4: Calculating cumulative positions for Manhattan plot...")
@@ -99,7 +99,6 @@ load_and_clean_gwas_data <- function(filepath, col_map = NULL, delimiter = NULL,
       study_info = study_info_list_for_func 
     ))
   }, error = function(e) {
-    # This will now print the specific error to the console
     message("!!! AN ERROR OCCURRED: ", e$message)
     showNotification(paste("Error processing data:", e$message), type = "error", duration = 15)
     return(NULL)
@@ -111,39 +110,569 @@ base_data_path <- "/sc/arion/projects/AsgariLab/abhijith/gwas_All_ID/saige_gwas"
 data_filename <- "gwas_meta_biome1.tsv" 
 
 dataset_catalog <- list(
-    "staph_aureus" = list(
-        id = "staph_aureus",
-        trait = "Staphylococcus aureus (minCodeCount1)",
-        filepath = file.path(base_data_path, "gwas_ID_002.1_Staphylococcus_aureus_minCodeCount1", data_filename),
-        study_info = list(reported_trait = "Staphylococcus aureus infection", first_author = "Abhijith", pubmed_id="TBD"),
-        col_map = list(p.value = "P", CHR = "CHR", POS = "BP", rsid = "SNP", Allele1 = "A1", Allele2 = "A2", BETA = "EFFECT_A1", SE = "SE", AF_Allele2 = "FREQ_A1"),
-        delimiter = "\t"
-    ),
-    "staph_aureus_min2" = list(
-        id = "staph_aureus_min2",
-        trait = "Staphylococcus (minCodeCount2)",
-        filepath = file.path(base_data_path, "gwas_ID_002_Staphylococcus_minCodeCount1", data_filename),
-        study_info = list(reported_trait = "Staphylococcus infection", first_author = "Abhijith", pubmed_id="TBD"),
-        col_map = list(p.value = "P", CHR = "CHR", POS = "BP", rsid = "SNP", Allele1 = "A1", Allele2 = "A2", BETA = "EFFECT_A1", SE = "SE", AF_Allele2 = "FREQ_A1"),
-        delimiter = "\t"
-    ),
-     "e_coli" = list(
-        id = "e_coli",
-        trait = "Escherichia coli",
-        filepath = file.path(base_data_path, "gwas_ID_003_Escherichia_coli_minCodeCount1", data_filename),
-        study_info = list(reported_trait = "Escherichia coli infection", first_author = "Abhijith", pubmed_id="TBD"),
-        col_map = list(p.value = "P", CHR = "CHR", POS = "BP", rsid = "SNP", Allele1 = "A1", Allele2 = "A2", BETA = "EFFECT_A1", SE = "SE", AF_Allele2 = "FREQ_A1"),
-        delimiter = "\t"
-    ),
-    "strep_a" = list(
-        id = "strep_a",
-        trait = "Group A Streptococcus",
-        filepath = file.path(base_data_path, "gwas_ID_004.2_Group_A_Streptococcus_minCodeCount1", data_filename),
-        study_info = list(reported_trait = "Group A Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD"),
-        col_map = list(p.value = "P", CHR = "CHR", POS = "BP", rsid = "SNP", Allele1 = "A1", Allele2 = "A2", BETA = "EFFECT_A1", SE = "SE", AF_Allele2 = "FREQ_A1"),
-        delimiter = "\t"
-    )
+  "staph_aureus" = list(
+    id = "staph_aureus",
+    trait = "Staphylococcus aureus",
+    filepath = file.path(base_data_path, "gwas_ID_002.1_Staphylococcus_aureus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Staphylococcus aureus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "staphylococcus" = list(
+    id = "staphylococcus",
+    trait = "Staphylococcus",
+    filepath = file.path(base_data_path, "gwas_ID_002_Staphylococcus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Staphylococcus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "escherichia_coli" = list(
+    id = "escherichia_coli",
+    trait = "Escherichia Coli",
+    filepath = file.path(base_data_path, "gwas_ID_003_Escherichia_coli_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "E. coli infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "group_a_streptococcus" = list(
+    id = "group_a_streptococcus",
+    trait = "Group A Streptococcus",
+    filepath = file.path(base_data_path, "gwas_ID_004.2_Group_A_Streptococcus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Group A Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "group_b_streptococcus" = list(
+    id = "group_b_streptococcus",
+    trait = "Group B Streptococcus",
+    filepath = file.path(base_data_path, "gwas_ID_004.3_Group_B_Streptococcus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Group B Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "streptococcus" = list(
+    id = "streptococcus",
+    trait = "Streptococcus",
+    filepath = file.path(base_data_path, "gwas_ID_004_Streptococcus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "mycobacterium_tuberculosis" = list(
+    id = "mycobacterium_tuberculosis",
+    trait = "Mycobacterium Tuberculosis",
+    filepath = file.path(base_data_path, "gwas_ID_005.1_Mycobacterium_tuberculosis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Mycobacterium Tuberculosis infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "mycobacteria" = list(
+    id = "mycobacteria",
+    trait = "Mycobacteria",
+    filepath = file.path(base_data_path, "gwas_ID_005_Mycobacteria_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Mycobacteria infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "neisseria_gonorrhea" = list(
+    id = "neisseria_gonorrhea",
+    trait = "Neisseria Gonorrhea",
+    filepath = file.path(base_data_path, "gwas_ID_006.2_Neisseria_gonorrhea_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Neisseria Gonorrhea infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "neisseria" = list(
+    id = "neisseria",
+    trait = "Neisseria",
+    filepath = file.path(base_data_path, "gwas_ID_006_Neisseria_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "E. coli infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "H_pylori" = list(
+    id = "H_pylori",
+    trait = "Helicobacter pylori",
+    filepath = file.path(base_data_path, "gwas_ID_008_Helicobacteri_[H._pylori]_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "H. pylori infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "clostridium_difficile" = list(
+    id = "clostridium_difficile",
+    trait = "Clostridium Difficile",
+    filepath = file.path(base_data_path, "gwas_ID_015.2_Clostridium_difficile_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "C. diff infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "clostridium" = list(
+    id = "clostridium",
+    trait = "Clostridium",
+    filepath = file.path(base_data_path, "gwas_ID_015_Clostridium_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Clostridium infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "chlamydia_trachomatis" = list(
+    id = "chlamydia_trachomatis",
+    trait = "Chlamydia Trachomatis",
+    filepath = file.path(base_data_path, "gwas_ID_016.1_Chlamydia_trachomatis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Chlamydia Trachomatis infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "chlamydia" = list(
+    id = "chlamydia",
+    trait = "Chlamydia",
+    filepath = file.path(base_data_path, "gwas_ID_016_Chlamydia_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Chlamydia infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "treponema_pallidum" = list(
+    id = "treponema_pallidum",
+    trait = "Treponema Pallidum",
+    filepath = file.path(base_data_path, "gwas_ID_019.1_Treponema_pallidum_[syphilis]_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Treponema Pallidum (syphilis) infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "treponema" = list(
+    id = "treponema",
+    trait = "Treponema",
+    filepath = file.path(base_data_path, "gwas_ID_019_Treponema_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Treponema infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "lyme_disease" = list(
+    id = "lyme_disease",
+    trait = "Lyme Disease",
+    filepath = file.path(base_data_path, "gwas_ID_020.1_Lyme_disease_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Lyme disease", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "borrelia" = list(
+    id = "borrelia",
+    trait = "Borrelia",
+    filepath = file.path(base_data_path, "gwas_ID_020_Borrelia_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Borrelia infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "enterovirus" = list(
+    id = "enterovirus",
+    trait = "Enterovirus",
+    filepath = file.path(base_data_path, "gwas_ID_050_Enterovirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Enterovirus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "herpes_simplex" = list(
+    id = "herpes_simplex",
+    trait = "Herpes Simplex",
+    filepath = file.path(base_data_path, "gwas_ID_052.1_Herpes_simplex_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Herpes simplex infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "varicella_[chickenpox]" = list(
+    id = "varicella_[chickenpox]",
+    trait = "Varicella [chickenpox]",
+    filepath = file.path(base_data_path, "gwas_ID_052.31_Varicella_[chickenpox]_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Varicella/Chickenpox infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "herpes_zoster" = list(
+    id = "herpes_zoster",
+    trait = "Herpes Zoster",
+    filepath = file.path(base_data_path, "gwas_ID_052.32_Herpes_zoster_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Herpes zoster infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "varicella_zoster" = list(
+    id = "varicella_zoster",
+    trait = "Varicella/Zoster virus",
+    filepath = file.path(base_data_path, "gwas_ID_052.3_Varicella_zoster_virus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Varicella/Zoster infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "infectious_mono" = list(
+    id = "infectious_mono",
+    trait = "Infectious Mononucleosis",
+    filepath = file.path(base_data_path, "gwas_ID_052.4_Infectious_mononucleosis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Mononucleosis infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "cytomegalovirus" = list(
+    id = "cytomegalovirus",
+    trait = "Cytomegalovirus [CMV]",
+    filepath = file.path(base_data_path, "gwas_ID_052.5_Cytomegalovirus_[CMV]_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Cytomegalovirus infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "herpesvirus" = list(
+    id = "herpesvirus",
+    trait = "Herpesvirus",
+    filepath = file.path(base_data_path, "gwas_ID_052_Herpesvirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Herpesvirus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "hepatitis_a" = list(
+    id = "hepatitis_a",
+    trait = "Hepatitis A",
+    filepath = file.path(base_data_path, "gwas_ID_054.1_Hepatitis_A_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Hepatitis A", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "hepatitis_a" = list(
+    id = "hepatitis_a",
+    trait = "Hepatitis A",
+    filepath = file.path(base_data_path, "gwas_ID_054.1_Hepatitis_A_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Hepatitis A", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "hepatitis_b_with_delta" = list(
+    id = "hepatitis_b_with_delta",
+    trait = "Hepatitis B with delta",
+    filepath = file.path(base_data_path, "gwas_ID_054.21_Hepatitis_B_with_delta_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Hepatitis B with delta", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "hepatitis_b" = list(
+    id = "hepatitis_b",
+    trait = "Hepatitis B",
+    filepath = file.path(base_data_path, "gwas_ID_054.2_Hepatitis_B_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Hepatitis B", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "chronic_hepatitis_c" = list(
+    id = "chronic_hepatitis_c",
+    trait = "Chronic Hepatitis C",
+    filepath = file.path(base_data_path, "gwas_ID_054.31_Chronic_hepatitis_C_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Chronic Hepatitis C", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), "acute_hepatitis_c" = list(
+    id = "acute_hepatitis_c",
+    trait = "Acute Hepatitis C",
+    filepath = file.path(base_data_path, "gwas_ID_054.32_Acute_hepatitis_C_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Acute Hepatitis C", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "hepatitis_c" = list(
+    id = "hepatitis_c",
+    trait = "Hepatitis C",
+    filepath = file.path(base_data_path, "gwas_ID_054.3_Hepatitis_C_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Hepatitis C", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "hepatovirus" = list(
+    id = "hepatovirus",
+    trait = "Hepatovirus",
+    filepath = file.path(base_data_path, "gwas_ID_054_Hepatovirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Hepatovirus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "molluscum_cont" = list(
+    id = "molluscum_cont",
+    trait = "Molluscum Contagiosum",
+    filepath = file.path(base_data_path, "gwas_ID_055.1_Molluscum_contagiosum_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Molluscum Contagiosum Infection", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "poxvirus" = list(
+    id = "poxvirus",
+    trait = "Poxvirus",
+    filepath = file.path(base_data_path, "gwas_ID_055_Poxvirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Poxvirus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "plantar_wart" = list(
+    id = "plantar_wart",
+    trait = "Plantar Warts",
+    filepath = file.path(base_data_path, "gwas_ID_056.1_Plantar_wart_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Plantar Warts", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "anogenital_warts" = list(
+    id = "anogenital_warts",
+    trait = "Anogenital [venereal] warts",
+    filepath = file.path(base_data_path, "gwas_ID_056.2_Anogenital_(venereal)_warts_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Anogenital/Venereal Warts", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "hpv" = list(
+    id = "hpv",
+    trait = "Human Papillomavirus",
+    filepath = file.path(base_data_path, "gwas_ID_056_Human_papillomavirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Human Papillomavirus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), "hiv" = list(
+    id = "hiv",
+    trait = "Human Immunodeficiency Virus",
+    filepath = file.path(base_data_path, "gwas_ID_057.1_Human_immunodeficiency_virus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "HIV", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "retrovirus" = list(
+    id = "retrovirus",
+    trait = "Retrovirus",
+    filepath = file.path(base_data_path, "gwas_ID_057_Retrovirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Retrovirus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "pneumo" = list(
+    id = "pneumo",
+    trait = "Pneumoviridae",
+    filepath = file.path(base_data_path, "gwas_ID_058_Pneumoviridae_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Pneumoviridae", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "cov2" = list(
+    id = "cov2",
+    trait = "Sars Cov 2*",
+    filepath = file.path(base_data_path, "gwas_ID_059.1_Sars-CoV-2*_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Sars Cov 2*", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "corona" = list(
+    id = "corona",
+    trait = "Coronavirus",
+    filepath = file.path(base_data_path, "gwas_ID_059_Coronavirus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Coronavirus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "influenza" = list(
+    id = "influenza",
+    trait = "Influenza Virus",
+    filepath = file.path(base_data_path, "gwas_ID_061_Influenza_virus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Influenza Virus", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "other_viral" = list(
+    id = "other_viral",
+    trait = "Other specified viral infections",
+    filepath = file.path(base_data_path, "gwas_ID_069_Other_specified_viral_infections_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Other Specified Viral Infections", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "candidiasis" = list(
+    id = "candidiasis",
+    trait = "Candidiasis",
+    filepath = file.path(base_data_path, "gwas_ID_070_Candidiasis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Candidiasis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "aspergillosis" = list(
+    id = "aspergillosis",
+    trait = "Aspergillosis",
+    filepath = file.path(base_data_path, "gwas_ID_074_Aspergillosis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Aspergillosis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ), 
+  "pneuomocystosis" = list(
+    id = "pneumocystosis",
+    trait = "Pneumocystosis",
+    filepath = file.path(base_data_path, "gwas_ID_076_Pneumocystosis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Pneumocystosis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "trichomoniasis" = list(
+    id = "trichomoniasis",
+    trait = "Tricomoniasis",
+    filepath = file.path(base_data_path, "gwas_ID_084.4_Trichomoniasis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Trichomoniasis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "Toxoplasmosis" = list(
+    id = "toxoplasmosis",
+    trait = "Toxoplasmosis",
+    filepath = file.path(base_data_path, "gwas_ID_084.5_Toxoplasmosis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Toxoplasmosis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "giardiasis" = list(
+    id = "giardiasis",
+    trait = "Giardiasis",
+    filepath = file.path(base_data_path, "gwas_ID_084.7_Giardiasis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Giardiasis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "parasites" = list(
+    id = "parasites",
+    trait = "Parasites",
+    filepath = file.path(base_data_path, "gwas_ID_084_Parasites_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Parasites", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "ediculosis" = list(
+    id = "pediculosis",
+    trait = "Pediculosis",
+    filepath = file.path(base_data_path, "gwas_ID_086.1_Pediculosis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Pediculosis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "scabies" = list(
+    id = "scabies",
+    trait = "Scabies",
+    filepath = file.path(base_data_path, "gwas_ID_086.2_Scabies_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Scabies", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "pediculosis_acarisis_other" = list(
+    id = "pediculosis_acarisis_other_infestations",
+    trait = "Pediculosis, Acariasis, and Other Infestations",
+    filepath = file.path(base_data_path, "gwas_ID_086_Pediculosis,_acariasis_and_other_infestations_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Pediculosis, Acariasis, and others", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "std" = list(
+    id = "std",
+    trait = "Sexually Transmitted Diseases",
+    filepath = file.path(base_data_path, "gwas_ID_088_Sexually_transmitted_disease_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Sexually Transmitted Diseases", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "bacterial_infections" = list(
+    id = "bacterial_infections",
+    trait = "Bacterial Infections",
+    filepath = file.path(base_data_path, "gwas_ID_089.1_Bacterial_infections_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Bacterial Infections", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "viral_infections" = list(
+    id = "viral_infections",
+    trait = "Viral Infections",
+    filepath = file.path(base_data_path, "gwas_ID_089.2_Viral_infections_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Viral Infections", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "fungal_infections" = list(
+    id = "fungal_infections",
+    trait = "Fungal Infections",
+    filepath = file.path(base_data_path, "gwas_ID_089.3_Fungal_infections_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Fungal Infections", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "infections" = list(
+    id = "infections",
+    trait = "Infections",
+    filepath = file.path(base_data_path, "gwas_ID_089_Infections_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Infections", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "gangrene" = list(
+    id = "gangrene",
+    trait = "Gangrene",
+    filepath = file.path(base_data_path, "gwas_ID_091_Gangrene_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Gangrene", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "systemic_inflammatory_response" = list(
+    id = "systemic_inflammatory_response",
+    trait = "Systemic Inflammatory Response",
+    filepath = file.path(base_data_path, "gwas_ID_092.1_Systemic_inflammatory_response_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Systemic Inflammatory Response", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "sepsis" = list(
+    id = "sepsis",
+    trait = "Sepsis",
+    filepath = file.path(base_data_path, "gwas_ID_092.2_Sepsis_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Sepsis", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "bacteremia" = list(
+    id = "bacteremia",
+    trait = "Bacteremia",
+    filepath = file.path(base_data_path, "gwas_ID_092.8_Bacteremia_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Bacteremia", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "bacteremia_sepsis_sirs" = list(
+    id = "bacteremia_sepsis_sirs",
+    trait = "Bacteremia, Sepsis, and SIRS",
+    filepath = file.path(base_data_path, "gwas_ID_092_Bacteremia,_sepsis,_and_SIRS_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Bacteremia, Sepsis, and SIRS", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "mrsa" = list(
+    id = "mrsa",
+    trait = "MRSA",
+    filepath = file.path(base_data_path, "gwas_ID_097.1_Methicillin_resistant_Staphylococcus_aureus_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "MRSA", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "Resistance_to_beta_lactam_antibiotics" = list(
+    id = "Resistance_to_beta_lactam_antibiotics",
+    trait = "Resistance_to_beta_lactam_antibiotics",
+    filepath = file.path(base_data_path, "gwas_ID_097.3_Resistance_to_beta_lactam_antibiotics_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Resistance_to_beta_lactam_antibiotics", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  "drug_resistance" = list(
+    id = "drug_resistant_microorganisms",
+    trait = "Drug Resistant Microorganisms",
+    filepath = file.path(base_data_path, "gwas_ID_097_Drug_resistant_microorganisms_minCodeCount1", data_filename),
+    study_info = list(reported_trait = "Drug Resistant Microorganisms", first_author = "Abhijith", pubmed_id="TBD"),
+    col_map = list(Chromosome = "CHR", Position = "BP", MarkerName = "SNP", Allele1 = "A1", Allele2 = "A2", Effect = "EFFECT_A1", StdErr = "SE", `P-value` = "P", Freq1 = "FREQ_A1"),
+    delimiter = "\t"
+  ),
+  
+  
+  # Add other datasets here
 )
+
 
 # --- 3. UI ---
 ui <- page_sidebar(
@@ -151,7 +680,7 @@ ui <- page_sidebar(
   title = "GWAS Viewer",
   sidebar = sidebar(
     selectInput("phenotype_selector", h4("Select a Study"),
-        choices = setNames(sapply(dataset_catalog, `[[`, "id"), sapply(dataset_catalog, `[[`, "trait"))),
+                choices = setNames(sapply(dataset_catalog, `[[`, "id"), sapply(dataset_catalog, `[[`, "trait"))),
     hr(),
     h4("Filters"),
     textInput("snp_search", "Search by SNP ID:", placeholder = "e.g., rs12345"),
@@ -173,25 +702,25 @@ ui <- page_sidebar(
 server <- function(input, output, session) {
   
   r_gwas_info <- eventReactive(input$phenotype_selector, {
-      req(input$phenotype_selector)
-      selected_study_metadata <- dataset_catalog[[input$phenotype_selector]]
-      load_and_clean_gwas_data(
-          filepath = selected_study_metadata$filepath, 
-          col_map = selected_study_metadata$col_map,
-          delimiter = selected_study_metadata$delimiter,
-          trait_name_for_func = selected_study_metadata$trait,
-          study_info_list_for_func = selected_study_metadata$study_info
-      )
+    req(input$phenotype_selector)
+    selected_study_metadata <- dataset_catalog[[input$phenotype_selector]]
+    load_and_clean_gwas_data(
+      filepath = selected_study_metadata$filepath, 
+      col_map = selected_study_metadata$col_map,
+      delimiter = selected_study_metadata$delimiter,
+      trait_name_for_func = selected_study_metadata$trait,
+      study_info_list_for_func = selected_study_metadata$study_info
+    )
   }, ignoreNULL = FALSE) 
-
+  
   filtered_data <- eventReactive(input$apply_filters_button, {
-      req(r_gwas_info())
-      base_data <- r_gwas_info()$data
-      data_out <- base_data %>% filter(LOG10P >= input$p_threshold)
-      if (input$snp_search != "") {
-          data_out <- data_out %>% filter(grepl(input$snp_search, SNP, ignore.case = TRUE))
-      }
-      return(data_out)
+    req(r_gwas_info())
+    base_data <- r_gwas_info()$data
+    data_out <- base_data %>% filter(LOG10P >= input$p_threshold)
+    if (input$snp_search != "") {
+      data_out <- data_out %>% filter(grepl(input$snp_search, SNP, ignore.case = TRUE))
+    }
+    return(data_out)
   }, ignoreNULL = FALSE)
   
   observeEvent(r_gwas_info(), {
@@ -211,20 +740,24 @@ server <- function(input, output, session) {
     req(r_gwas_info())
     plot_data <- filtered_data()
     if (nrow(plot_data) == 0) {
-        return(plotly_empty(type = "scatter", mode = "markers") %>% layout(title = "No significant SNPs found with current filters."))
+      return(plotly_empty(type = "scatter", mode = "markers") %>% layout(title = "No significant SNPs found with current filters."))
     }
     if(nrow(plot_data) > 500000) {
-        plot_data <- plot_data %>% slice_sample(n = 500000)
+      plot_data <- plot_data %>% slice_sample(n = 500000)
     }
     axis_set <- r_gwas_info()$axis_set
+    
+    # --- THIS IS THE FIX ---
+    # Changed the y-axis label from an expression() to a simple string
     p <- ggplot(plot_data, aes(x = BP_cum, y = LOG10P, text = paste("SNP:", SNP, "<br>P:", formatC(P, format="e", digits=2)))) + 
       geom_point(aes(color = as.factor(CHR %% 2)), alpha = 0.8, size = 1.5) +
       geom_hline(yintercept = input$p_threshold, color = "red", linetype = "dashed") +
       scale_color_manual(values = c("0" = "#27647B", "1" = "#56B4E9")) +
       scale_x_continuous(label = axis_set$Original_CHR, breaks = axis_set$center) +
-      labs(x = "Chromosome", y = expression(paste("-log"[10], "(P)"))) +
+      labs(x = "Chromosome", y = "-log10(P-value)") + # <-- THE FIX
       theme_minimal() +
       theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
+    
     ggplotly(p, tooltip = "text")
   })
   
@@ -235,11 +768,15 @@ server <- function(input, output, session) {
     observed <- -log10(sort(qq_data$P))
     expected <- -log10(ppoints(length(observed)))
     qq_df <- data.frame(expected, observed)
+    
+    # --- THIS IS THE FIX ---
+    # Changed the labels from expression() to simple strings
     p <- ggplot(qq_df, aes(x=expected, y=observed)) +
-        geom_point(alpha=0.5, color="#27647B") +
-        geom_abline(intercept=0, slope=1, color="red") +
-        labs(x = expression(paste("Expected -log"[10], "(P)")), y = expression(paste("Observed -log"[10], "(P)"))) +
-        theme_minimal()
+      geom_point(alpha=0.5, color="#27647B") +
+      geom_abline(intercept=0, slope=1, color="red") +
+      labs(x = "Expected -log10(P)", y = "Observed -log10(P)") + # <-- THE FIX
+      theme_minimal()
+    
     ggplotly(p)
   })
   
@@ -255,9 +792,9 @@ server <- function(input, output, session) {
     req(r_gwas_info())
     info <- r_gwas_info()$study_info
     create_info_p <- function(label, value) {
-        if (!is.null(value) && !is.na(value) && nzchar(as.character(value))) {
-            tags$p(tags$b(paste0(label, ": ")), as.character(value))
-        }
+      if (!is.null(value) && !is.na(value) && nzchar(as.character(value))) {
+        tags$p(tags$b(paste0(label, ": ")), as.character(value))
+      }
     }
     div(
       create_info_p("Reported Trait", info$reported_trait),
