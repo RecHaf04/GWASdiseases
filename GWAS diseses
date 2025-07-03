@@ -1,4 +1,4 @@
-# app.R - Final Database Version with Full Catalog
+# app.R - Final Optimized Version
 
 # --- 1. LOAD PACKAGES ---
 library(shiny)
@@ -9,7 +9,8 @@ library(plotly)
 library(DT)
 library(DBI)
 library(RSQLite)
-library(dbplyr)
+library(purrr) 
+library(shinycssloaders)
 
 # --- 2. DATABASE CONNECTION & CATALOG ---
 
@@ -25,7 +26,7 @@ onStop(function() {
   message("Database connection closed.")
 })
 
-# The catalog now points to all tables inside the V2 database.
+# The complete catalog of all datasets in the database.
 dataset_catalog <- list(
   "staph_aureus" = list(id = "staph_aureus", trait = "Staphylococcus aureus", table_name = "staph_aureus", study_info = list(reported_trait = "Staphylococcus aureus infection", first_author = "Abhijith", pubmed_id="TBD")),
   "staphylococcus" = list(id = "staphylococcus", trait = "Staphylococcus", table_name = "staphylococcus", study_info = list(reported_trait = "Staphylococcus infection", first_author = "Abhijith", pubmed_id="TBD")),
@@ -101,94 +102,79 @@ dataset_catalog <- list(
 # --- 3. UI ---
 ui <- page_sidebar(
   theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#007bff"),
-  title = "GWAS Viewer (Database Mode)",
+  title = "GWAS Viewer",
   sidebar = sidebar(
     selectInput("phenotype_selector", h4("Select a Study"),
                 choices = setNames(sapply(dataset_catalog, `[[`, "id"), sapply(dataset_catalog, `[[`, "trait"))),
     hr(),
     h4("Filters"),
-    textInput("snp_search", "Search by SNP ID:", placeholder = "e.g., rs12345"),
+    textInput("chr_search", "Search by Chromosome:", placeholder = "e.g., 1 or X"),
+    numericInput("pos_search", "Search by Position (HG38):", value = NULL, min = 0),
     sliderInput("p_threshold", "Significance Threshold (-log10 P):", min = 0, max = 30, value = 3.5, step = 0.1),
     hr(),
     actionButton("apply_filters_button", "Apply Filters", class = "btn-primary w-100")
   ),
+  # REMOVED the "Study Info" tab
   navset_card_tab(
-    nav_panel("Manhattan Plot", card(card_header(uiOutput("manhattan_plot_header")), plotlyOutput("manhattan_plot", height = "500px"))),
-    nav_panel("QQ Plot", card(card_header(uiOutput("qq_plot_header")), plotlyOutput("qq_plot", height = "500px"))),
-    nav_panel("Summary Data",
-              card(card_header(uiOutput("summary_data_header")), DT::dataTableOutput("results_table")),
-              card(card_header(uiOutput("study_info_header")), uiOutput("study_info_content"))
-    )
+    id = "main_tabs",
+    nav_panel("Manhattan Plot", shinycssloaders::withSpinner(plotlyOutput("manhattan_plot", height = "500px"))),
+    nav_panel("QQ Plot", 
+              card(
+                card_header(uiOutput("qq_plot_header")),
+                # NEW: Added a button to trigger the QQ plot
+                actionButton("generate_qq_button", "Generate QQ Plot", class="btn-info mb-3"),
+                shinycssloaders::withSpinner(plotlyOutput("qq_plot", height = "500px"))
+              )
+    ),
+    nav_panel("Summary Data", card(card_header(uiOutput("summary_data_header")), shinycssloaders::withSpinner(DT::dataTableOutput("results_table")))),
+    nav_panel("Cross-Phenotype Search", card(card_header("Cross-Phenotype SNP Search Results"), shinycssloaders::withSpinner(DT::dataTableOutput("cross_pheno_table"))))
   )
 )
 
 # --- 4. SERVER ---
 server <- function(input, output, session) {
 
-  # This reactive expression now builds a fast, efficient DATABASE QUERY.
-  filtered_data <- eventReactive(input$apply_filters_button, {
+  # This reactive handles the main data filtering for the Manhattan plot
+  manhattan_data <- eventReactive(input$apply_filters_button, {
     
-    req(input$phenotype_selector)
-    
-    id <- showNotification("Querying database...", type = "message", duration = NULL)
+    id <- showNotification("Querying database for plot...", type = "message", duration = NULL)
     on.exit(removeNotification(id), add = TRUE)
 
-    selected_study <- dataset_catalog[[input$phenotype_selector]]
-    table_name <- selected_study$table_name
+    table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
     
-    # --- THE NEW, DIRECT SQL APPROACH ---
-    # We build the SQL query as a string to avoid parameter binding issues.
+    # --- NEW, ROBUST QUERY LOGIC (HYBRID APPROACH) ---
+    message("Fetching a broad chunk of data from the database...")
     
-    # Sanitize inputs to be safe
-    threshold <- as.numeric(input$p_threshold)
+    # 1. Fetch a large, pre-filtered chunk from the database.
+    #    This query is simple and less likely to fail.
+    sql_query_broad <- paste("SELECT * FROM", DBI::dbQuoteIdentifier(con, table_name), "WHERE LOG10P >= 2")
+    broad_results <- dbGetQuery(con, sql_query_broad)
+    message(paste("Fetched", nrow(broad_results), "rows with LOG10P >= 2."))
     
-    # Build the WHERE clause
-    where_clause <- paste0("WHERE LOG10P >= ", threshold)
+    # 2. Perform the precise filtering and sampling in R, which is more reliable.
+    significant_points <- broad_results %>% filter(LOG10P >= input$p_threshold)
     
-    if (input$snp_search != "") {
-      # Sanitize the search term to prevent SQL injection
-      search_term <- gsub("'", "''", input$snp_search) # Escape single quotes
-      where_clause <- paste0(where_clause, " AND MarkerName LIKE '%", search_term, "%'")
-    }
+    nonsignificant_points <- broad_results %>% 
+      filter(LOG10P < input$p_threshold) %>%
+      group_by(floor(LOG10P)) %>%
+      slice_sample(n = 2000, replace = TRUE) %>%
+      ungroup()
+      
+    # 3. Combine them in R
+    results <- bind_rows(significant_points, nonsignificant_points)
     
-    # Construct the full query
-    sql_query <- paste("SELECT * FROM", DBI::dbQuoteIdentifier(con, table_name), where_clause)
-    
-    message("--- DIRECT SQL QUERY ---")
-    message(sql_query)
-    message("-----------------")
-    
-    # Execute the query 
-    results <- dbGetQuery(con, sql_query)
-    message("Query complete. Rows returned: ", nrow(results))
+    message("Plot query complete. Rows returned: ", nrow(results))
 
-    # Perform final data prep on the much smaller returned dataset
+    # Perform final data prep on the returned dataset
     if (nrow(results) > 0) {
         final_data <- results %>%
-            rename(
-                SNP = MarkerName,
-                CHR = Chromosome,
-                BP = Position,
-                P = P_value,
-                A1 = Allele1,
-                A2 = Allele2,
-                FREQ_A1 = Freq1,
-                EFFECT_A1 = Effect,
-                SE = StdErr
-            ) %>%
+            rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
             mutate(Original_CHR = as.character(CHR)) %>%
             mutate(Cleaned_CHR_temp = toupper(gsub("^chr", "", CHR))) %>%
-            mutate(CHR = case_when(
-                Cleaned_CHR_temp == "X" ~ 23,
-                Cleaned_CHR_temp == "Y" ~ 24,
-                Cleaned_CHR_temp == "MT" ~ 25,
-                grepl("^[0-9]+$", Cleaned_CHR_temp) ~ as.numeric(Cleaned_CHR_temp),
-                TRUE ~ NA_real_
-            )) %>%
+            mutate(CHR = case_when(Cleaned_CHR_temp == "X" ~ 23, Cleaned_CHR_temp == "Y" ~ 24, Cleaned_CHR_temp == "MT" ~ 25, grepl("^[0-9]+$", Cleaned_CHR_temp) ~ as.numeric(Cleaned_CHR_temp), TRUE ~ NA_real_)) %>%
             select(-Cleaned_CHR_temp) %>%
             filter(!is.na(CHR))
 
-        # Calculate cumulative position for plotting
         axis_info <- final_data %>%
             group_by(CHR) %>%
             summarise(max_bp = max(BP, na.rm = TRUE), .groups = 'drop') %>%
@@ -204,22 +190,91 @@ server <- function(input, output, session) {
     }
 
   }, ignoreNULL = FALSE)
-  
-  # --- All the output$ blocks below should work with the new `filtered_data` reactive ---
+
+  # --- NEW: This reactive handles the cross-phenotype search by Chromosome and Position ---
+  cross_pheno_data <- eventReactive(input$apply_filters_button, {
+    # Only run if both search boxes have a value
+    req(input$chr_search != "", !is.na(input$pos_search)) 
+
+    id <- showNotification("Searching all phenotypes for coordinate...", type = "message", duration = NULL)
+    on.exit(removeNotification(id), add = TRUE)
+    
+    # Prepare search terms
+    search_chr_raw <- input$chr_search
+    search_pos <- input$pos_search
+    
+    # Clean the chromosome input to match the database format
+    search_chr_cleaned <- toupper(gsub("^chr", "", search_chr_raw))
+    search_chr_numeric <- case_when(
+        search_chr_cleaned == "X" ~ 23,
+        search_chr_cleaned == "Y" ~ 24,
+        search_chr_cleaned == "MT" ~ 25,
+        grepl("^[0-9]+$", search_chr_cleaned) ~ as.numeric(search_chr_cleaned),
+        TRUE ~ NA_real_
+    )
+    
+    req(!is.na(search_chr_numeric)) # Stop if chromosome is invalid
+
+    all_results <- map_dfr(dataset_catalog, function(dataset) {
+      
+      table_name <- dataset$table_name
+      trait_name <- dataset$trait
+      
+      # Build a query that searches by Chromosome AND Position
+      sql_query <- paste0("SELECT * FROM ", DBI::dbQuoteIdentifier(con, table_name), " WHERE Chromosome = ? AND Position = ?")
+      
+      res <- tryCatch({
+        dbGetQuery(con, sql_query, params = list(search_chr_numeric, search_pos))
+      }, error = function(e) {
+        message("Error querying table: ", table_name, " - ", e$message)
+        return(NULL)
+      })
+      
+      if (!is.null(res) && nrow(res) > 0) {
+        res <- res %>% mutate(Trait = trait_name)
+        return(res)
+      } else {
+        return(NULL)
+      }
+    })
+    
+    # --- NEW: Sort the final results by -log10(P) ---
+    if (nrow(all_results) > 0) {
+      all_results <- all_results %>% arrange(desc(LOG10P))
+    }
+    
+    return(all_results)
+  })
+
+  # This reactive handles the QQ Plot data generation
+  qq_plot_data <- eventReactive(input$generate_qq_button, {
+      
+      id <- showNotification("Generating QQ Plot...", type = "message", duration = NULL)
+      on.exit(removeNotification(id), add = TRUE)
+
+      table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
+      
+      # NEW: Reduced sample size for QQ plot to improve performance
+      qq_sql <- paste("SELECT P_value FROM", DBI::dbQuoteIdentifier(con, table_name), "ORDER BY RANDOM() LIMIT 50000")
+      qq_data <- dbGetQuery(con, qq_sql)
+
+      observed <- -log10(sort(qq_data$P_value))
+      expected <- -log10(ppoints(length(observed)))
+      
+      qq_df <- data.frame(expected, observed)
+      return(qq_df)
+  })
+
+  # --- All the output$ blocks ---
 
   output$manhattan_plot_header <- renderUI({ h4(paste("Manhattan Plot -", dataset_catalog[[input$phenotype_selector]]$trait)) })
   output$qq_plot_header <- renderUI({ h4(paste("QQ Plot -", dataset_catalog[[input$phenotype_selector]]$trait)) })
-  output$summary_data_header <- renderUI({ h5("Results Table") })
-  output$study_info_header <- renderUI({ h5(paste("Study Information:", dataset_catalog[[input$phenotype_selector]]$trait)) })
+  output$summary_data_header <- renderUI({ h5("Summary Data Table (filtered by p-value)") })
   
   output$manhattan_plot <- renderPlotly({
-    plot_data <- filtered_data()
+    plot_data <- manhattan_data()
     if (nrow(plot_data) == 0) {
         return(plotly_empty(type = "scatter", mode = "markers") %>% layout(title = "No significant SNPs found with current filters."))
-    }
-    
-    if(nrow(plot_data) > 500000) {
-        plot_data <- plot_data %>% slice_sample(n = 500000)
     }
     
     axis_set <- plot_data %>%
@@ -240,16 +295,7 @@ server <- function(input, output, session) {
   })
   
   output$qq_plot <- renderPlotly({
-    table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
-    
-    # Use a direct SQL query for the QQ plot sample as well
-    qq_sql <- paste("SELECT P_value FROM", DBI::dbQuoteIdentifier(con, table_name), "ORDER BY RANDOM() LIMIT 200000")
-    qq_data <- dbGetQuery(con, qq_sql)
-
-    observed <- -log10(sort(qq_data$P_value))
-    expected <- -log10(ppoints(length(observed)))
-    
-    qq_df <- data.frame(expected, observed)
+    qq_df <- qq_plot_data()
     
     p <- ggplot(qq_df, aes(x=expected, y=observed)) +
         geom_point(alpha=0.5, color="#27647B") +
@@ -260,29 +306,27 @@ server <- function(input, output, session) {
     ggplotly(p)
   })
   
+  # This table shows the filtered data for the selected phenotype
   output$results_table <- DT::renderDataTable({
-    req(nrow(filtered_data()) > 0)
+    table_data <- manhattan_data()
+    req(nrow(table_data) > 0)
     
-    filtered_data() %>%
-      arrange(desc(LOG10P)) %>% # Arrange by LOG10P now
-      # Select only the final, clean columns for display
+    table_data %>%
+      arrange(desc(LOG10P)) %>%
       select(SNP, CHR, BP, P, LOG10P, A1, A2, FREQ_A1, EFFECT_A1, SE) %>%
       mutate(P = formatC(P, format = "e", digits = 2), across(where(is.numeric), ~round(., 4)))
   }, options = list(pageLength = 10, scrollX = TRUE), server = FALSE)
   
-  output$study_info_content <- renderUI({
-    info <- dataset_catalog[[input$phenotype_selector]]$study_info
-    create_info_p <- function(label, value) {
-        if (!is.null(value) && !is.na(value) && nzchar(as.character(value))) {
-            tags$p(tags$b(paste0(label, ": ")), as.character(value))
-        }
-    }
-    div(
-      create_info_p("Reported Trait", info$reported_trait),
-      create_info_p("First Author", info$first_author),
-      create_info_p("PubMed ID", info$pubmed_id)
-    )
-  })
+  # This NEW table shows the results of the cross-phenotype search
+  output$cross_pheno_table <- DT::renderDataTable({
+      req(nrow(cross_pheno_data()) > 0)
+      
+      cross_pheno_data() %>%
+        rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
+        select(Trait, SNP, CHR, BP, P, LOG10P, A1, A2, FREQ_A1, EFFECT_A1, SE) %>%
+        mutate(P = formatC(P, format = "e", digits = 2), across(where(is.numeric), ~round(., 4)))
+  }, options = list(pageLength = 10, scrollX = TRUE, filter = 'top'))
+  
 }
 
 # --- 5. RUN ---
