@@ -1,4 +1,4 @@
-# app.R - Final Optimized Version
+# app.R - Final Feature-Rich Version
 
 # --- 1. LOAD PACKAGES ---
 library(shiny)
@@ -133,13 +133,13 @@ ui <- page_sidebar(
 
 # --- 4. SERVER ---
 server <- function(input, output, session) {
-
+  
   # This reactive handles the main data filtering for the Manhattan plot
   manhattan_data <- eventReactive(input$apply_filters_button, {
     
     id <- showNotification("Querying database for plot...", type = "message", duration = NULL)
     on.exit(removeNotification(id), add = TRUE)
-
+    
     table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
     
     # --- NEW, ROBUST QUERY LOGIC (HYBRID APPROACH) ---
@@ -159,43 +159,43 @@ server <- function(input, output, session) {
       group_by(floor(LOG10P)) %>%
       slice_sample(n = 2000, replace = TRUE) %>%
       ungroup()
-      
+    
     # 3. Combine them in R
     results <- bind_rows(significant_points, nonsignificant_points)
     
     message("Plot query complete. Rows returned: ", nrow(results))
-
+    
     # Perform final data prep on the returned dataset
     if (nrow(results) > 0) {
-        final_data <- results %>%
-            rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
-            mutate(Original_CHR = as.character(CHR)) %>%
-            mutate(Cleaned_CHR_temp = toupper(gsub("^chr", "", CHR))) %>%
-            mutate(CHR = case_when(Cleaned_CHR_temp == "X" ~ 23, Cleaned_CHR_temp == "Y" ~ 24, Cleaned_CHR_temp == "MT" ~ 25, grepl("^[0-9]+$", Cleaned_CHR_temp) ~ as.numeric(Cleaned_CHR_temp), TRUE ~ NA_real_)) %>%
-            select(-Cleaned_CHR_temp) %>%
-            filter(!is.na(CHR))
-
-        axis_info <- final_data %>%
-            group_by(CHR) %>%
-            summarise(max_bp = max(BP, na.rm = TRUE), .groups = 'drop') %>%
-            mutate(bp_add = lag(cumsum(as.numeric(max_bp)), default = 0))
-            
-        final_data <- final_data %>%
-            left_join(axis_info %>% select(CHR, bp_add), by = "CHR") %>%
-            mutate(BP_cum = BP + bp_add)
-            
-        return(final_data)
+      final_data <- results %>%
+        rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
+        mutate(Original_CHR = as.character(CHR)) %>%
+        mutate(Cleaned_CHR_temp = toupper(gsub("^chr", "", CHR))) %>%
+        mutate(CHR = case_when(Cleaned_CHR_temp == "X" ~ 23, Cleaned_CHR_temp == "Y" ~ 24, Cleaned_CHR_temp == "MT" ~ 25, grepl("^[0-9]+$", Cleaned_CHR_temp) ~ as.numeric(Cleaned_CHR_temp), TRUE ~ NA_real_)) %>%
+        select(-Cleaned_CHR_temp) %>%
+        filter(!is.na(CHR))
+      
+      axis_info <- final_data %>%
+        group_by(CHR) %>%
+        summarise(max_bp = max(BP, na.rm = TRUE), .groups = 'drop') %>%
+        mutate(bp_add = lag(cumsum(as.numeric(max_bp)), default = 0))
+      
+      final_data <- final_data %>%
+        left_join(axis_info %>% select(CHR, bp_add), by = "CHR") %>%
+        mutate(BP_cum = BP + bp_add)
+      
+      return(final_data)
     } else {
-        return(data.frame()) 
+      return(data.frame()) 
     }
-
+    
   }, ignoreNULL = FALSE)
-
+  
   # --- NEW: This reactive handles the cross-phenotype search by Chromosome and Position ---
   cross_pheno_data <- eventReactive(input$apply_filters_button, {
     # Only run if both search boxes have a value
     req(input$chr_search != "", !is.na(input$pos_search)) 
-
+    
     id <- showNotification("Searching all phenotypes for coordinate...", type = "message", duration = NULL)
     on.exit(removeNotification(id), add = TRUE)
     
@@ -206,15 +206,15 @@ server <- function(input, output, session) {
     # Clean the chromosome input to match the database format
     search_chr_cleaned <- toupper(gsub("^chr", "", search_chr_raw))
     search_chr_numeric <- case_when(
-        search_chr_cleaned == "X" ~ 23,
-        search_chr_cleaned == "Y" ~ 24,
-        search_chr_cleaned == "MT" ~ 25,
-        grepl("^[0-9]+$", search_chr_cleaned) ~ as.numeric(search_chr_cleaned),
-        TRUE ~ NA_real_
+      search_chr_cleaned == "X" ~ 23,
+      search_chr_cleaned == "Y" ~ 24,
+      search_chr_cleaned == "MT" ~ 25,
+      grepl("^[0-9]+$", search_chr_cleaned) ~ as.numeric(search_chr_cleaned),
+      TRUE ~ NA_real_
     )
     
     req(!is.na(search_chr_numeric)) # Stop if chromosome is invalid
-
+    
     all_results <- map_dfr(dataset_catalog, function(dataset) {
       
       table_name <- dataset$table_name
@@ -245,28 +245,28 @@ server <- function(input, output, session) {
     
     return(all_results)
   })
-
+  
   # This reactive handles the QQ Plot data generation
   qq_plot_data <- eventReactive(input$generate_qq_button, {
-      
-      id <- showNotification("Generating QQ Plot...", type = "message", duration = NULL)
-      on.exit(removeNotification(id), add = TRUE)
-
-      table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
-      
-      # NEW: Reduced sample size for QQ plot to improve performance
-      qq_sql <- paste("SELECT P_value FROM", DBI::dbQuoteIdentifier(con, table_name), "ORDER BY RANDOM() LIMIT 50000")
-      qq_data <- dbGetQuery(con, qq_sql)
-
-      observed <- -log10(sort(qq_data$P_value))
-      expected <- -log10(ppoints(length(observed)))
-      
-      qq_df <- data.frame(expected, observed)
-      return(qq_df)
+    
+    id <- showNotification("Generating QQ Plot...", type = "message", duration = NULL)
+    on.exit(removeNotification(id), add = TRUE)
+    
+    table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
+    
+    # NEW: Reduced sample size for QQ plot to improve performance
+    qq_sql <- paste("SELECT P_value FROM", DBI::dbQuoteIdentifier(con, table_name), "ORDER BY RANDOM() LIMIT 50000")
+    qq_data <- dbGetQuery(con, qq_sql)
+    
+    observed <- -log10(sort(qq_data$P_value))
+    expected <- -log10(ppoints(length(observed)))
+    
+    qq_df <- data.frame(expected, observed)
+    return(qq_df)
   })
-
+  
   # --- All the output$ blocks ---
-
+  
   output$manhattan_plot_header <- renderUI({ h4(paste("Manhattan Plot -", dataset_catalog[[input$phenotype_selector]]$trait)) })
   output$qq_plot_header <- renderUI({ h4(paste("QQ Plot -", dataset_catalog[[input$phenotype_selector]]$trait)) })
   output$summary_data_header <- renderUI({ h5("Summary Data Table (filtered by p-value)") })
@@ -274,14 +274,14 @@ server <- function(input, output, session) {
   output$manhattan_plot <- renderPlotly({
     plot_data <- manhattan_data()
     if (nrow(plot_data) == 0) {
-        return(plotly_empty(type = "scatter", mode = "markers") %>% layout(title = "No significant SNPs found with current filters."))
+      return(plotly_empty(type = "scatter", mode = "markers") %>% layout(title = "No significant SNPs found with current filters."))
     }
     
     axis_set <- plot_data %>%
       group_by(CHR) %>%
       summarise(center = mean(BP_cum, na.rm = TRUE), Original_CHR = first(Original_CHR), .groups = 'drop') %>%
       arrange(CHR)
-
+    
     p <- ggplot(plot_data, aes(x = BP_cum, y = LOG10P, text = paste("SNP:", SNP, "<br>P:", formatC(P, format="e", digits=2)))) + 
       geom_point(aes(color = as.factor(CHR %% 2)), alpha = 0.8, size = 1.5) +
       geom_hline(yintercept = input$p_threshold, color = "red", linetype = "dashed") +
@@ -298,11 +298,11 @@ server <- function(input, output, session) {
     qq_df <- qq_plot_data()
     
     p <- ggplot(qq_df, aes(x=expected, y=observed)) +
-        geom_point(alpha=0.5, color="#27647B") +
-        geom_abline(intercept=0, slope=1, color="red") +
-        labs(x = "Expected -log10(P)", y = "Observed -log10(P)") +
-        theme_minimal()
-        
+      geom_point(alpha=0.5, color="#27647B") +
+      geom_abline(intercept=0, slope=1, color="red") +
+      labs(x = "Expected -log10(P)", y = "Observed -log10(P)") +
+      theme_minimal()
+    
     ggplotly(p)
   })
   
@@ -319,12 +319,12 @@ server <- function(input, output, session) {
   
   # This NEW table shows the results of the cross-phenotype search
   output$cross_pheno_table <- DT::renderDataTable({
-      req(nrow(cross_pheno_data()) > 0)
-      
-      cross_pheno_data() %>%
-        rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
-        select(Trait, SNP, CHR, BP, P, LOG10P, A1, A2, FREQ_A1, EFFECT_A1, SE) %>%
-        mutate(P = formatC(P, format = "e", digits = 2), across(where(is.numeric), ~round(., 4)))
+    req(nrow(cross_pheno_data()) > 0)
+    
+    cross_pheno_data() %>%
+      rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
+      select(Trait, SNP, CHR, BP, P, LOG10P, A1, A2, FREQ_A1, EFFECT_A1, SE) %>%
+      mutate(P = formatC(P, format = "e", digits = 2), across(where(is.numeric), ~round(., 4)))
   }, options = list(pageLength = 10, scrollX = TRUE, filter = 'top'))
   
 }
