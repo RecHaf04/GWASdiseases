@@ -1,4 +1,4 @@
-# app.R - Final Feature-Rich Version
+# app.R - Final Caching Version
 
 # --- 1. LOAD PACKAGES ---
 library(shiny)
@@ -11,323 +11,171 @@ library(DBI)
 library(RSQLite)
 library(purrr) 
 library(shinycssloaders)
+library(httr)
+library(jsonlite)
 
-# --- 2. DATABASE CONNECTION & CATALOG ---
 
-# The path to the V2 SQLite database file.
-database_file_path <- "/sc/arion/projects/AsgariLab/RechumaHafter/gwas_data_v2.sqlite"
-
-# Establish a persistent connection to the database.
-con <- dbConnect(RSQLite::SQLite(), database_file_path)
-
-# Ensure the connection is closed when the app stops.
-onStop(function() {
-  dbDisconnect(con)
-  message("Database connection closed.")
-})
-
-# The complete catalog of all datasets in the database.
 dataset_catalog <- list(
-  "staph_aureus" = list(id = "staph_aureus", trait = "Staphylococcus aureus", table_name = "staph_aureus", study_info = list(reported_trait = "Staphylococcus aureus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "staphylococcus" = list(id = "staphylococcus", trait = "Staphylococcus", table_name = "staphylococcus", study_info = list(reported_trait = "Staphylococcus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "escherichia_coli" = list(id = "escherichia_coli", trait = "Escherichia Coli", table_name = "escherichia_coli", study_info = list(reported_trait = "E. coli infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "group_a_streptococcus" = list(id = "group_a_streptococcus", trait = "Group A Streptococcus", table_name = "group_a_streptococcus", study_info = list(reported_trait = "Group A Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "group_b_streptococcus" = list(id = "group_b_streptococcus", trait = "Group B Streptococcus", table_name = "group_b_streptococcus", study_info = list(reported_trait = "Group B Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "streptococcus" = list(id = "streptococcus", trait = "Streptococcus", table_name = "streptococcus", study_info = list(reported_trait = "Streptococcus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "mycobacterium_tuberculosis" = list(id = "mycobacterium_tuberculosis", trait = "Mycobacterium Tuberculosis", table_name = "mycobacterium_tuberculosis", study_info = list(reported_trait = "Mycobacterium Tuberculosis infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "mycobacteria" = list(id = "mycobacteria", trait = "Mycobacteria", table_name = "mycobacteria", study_info = list(reported_trait = "Mycobacteria infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "neisseria_gonorrhea" = list(id = "neisseria_gonorrhea", trait = "Neisseria Gonorrhea", table_name = "neisseria_gonorrhea", study_info = list(reported_trait = "Neisseria Gonorrhea infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "neisseria" = list(id = "neisseria", trait = "Neisseria", table_name = "neisseria", study_info = list(reported_trait = "Neisseria infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "H_pylori" = list(id = "H_pylori", trait = "Helicobacter pylori", table_name = "H_pylori", study_info = list(reported_trait = "H. pylori infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "clostridium_difficile" = list(id = "clostridium_difficile", trait = "Clostridium Difficile", table_name = "clostridium_difficile", study_info = list(reported_trait = "C. diff infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "clostridium" = list(id = "clostridium", trait = "Clostridium", table_name = "clostridium", study_info = list(reported_trait = "Clostridium infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "chlamydia_trachomatis" = list(id = "chlamydia_trachomatis", trait = "Chlamydia Trachomatis", table_name = "chlamydia_trachomatis", study_info = list(reported_trait = "Chlamydia Trachomatis infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "chlamydia" = list(id = "chlamydia", trait = "Chlamydia", table_name = "chlamydia", study_info = list(reported_trait = "Chlamydia infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "treponema_pallidum" = list(id = "treponema_pallidum", trait = "Treponema Pallidum", table_name = "treponema_pallidum", study_info = list(reported_trait = "Treponema Pallidum (syphilis) infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "treponema" = list(id = "treponema", trait = "Treponema", table_name = "treponema", study_info = list(reported_trait = "Treponema infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "lyme_disease" = list(id = "lyme_disease", trait = "Lyme Disease", table_name = "lyme_disease", study_info = list(reported_trait = "Lyme disease", first_author = "Abhijith", pubmed_id="TBD")),
-  "borrelia" = list(id = "borrelia", trait = "Borrelia", table_name = "borrelia", study_info = list(reported_trait = "Borrelia infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "enterovirus" = list(id = "enterovirus", trait = "Enterovirus", table_name = "enterovirus", study_info = list(reported_trait = "Enterovirus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "herpes_simplex" = list(id = "herpes_simplex", trait = "Herpes Simplex", table_name = "herpes_simplex", study_info = list(reported_trait = "Herpes simplex infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "varicella_chickenpox" = list(id = "varicella_chickenpox", trait = "Varicella [chickenpox]", table_name = "varicella_chickenpox", study_info = list(reported_trait = "Varicella/Chickenpox infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "herpes_zoster" = list(id = "herpes_zoster", trait = "Herpes Zoster", table_name = "herpes_zoster", study_info = list(reported_trait = "Herpes zoster infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "varicella_zoster" = list(id = "varicella_zoster", trait = "Varicella/Zoster virus", table_name = "varicella_zoster", study_info = list(reported_trait = "Varicella/Zoster infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "infectious_mono" = list(id = "infectious_mono", trait = "Infectious Mononucleosis", table_name = "infectious_mono", study_info = list(reported_trait = "Mononucleosis infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "cytomegalovirus" = list(id = "cytomegalovirus", trait = "Cytomegalovirus [CMV]", table_name = "cytomegalovirus", study_info = list(reported_trait = "Cytomegalovirus infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "herpesvirus" = list(id = "herpesvirus", trait = "Herpesvirus", table_name = "herpesvirus", study_info = list(reported_trait = "Herpesvirus", first_author = "Abhijith", pubmed_id="TBD")),
-  "hepatitis_a" = list(id = "hepatitis_a", trait = "Hepatitis A", table_name = "hepatitis_a", study_info = list(reported_trait = "Hepatitis A", first_author = "Abhijith", pubmed_id="TBD")),
-  "hepatitis_b_with_delta" = list(id = "hepatitis_b_with_delta", trait = "Hepatitis B with delta", table_name = "hepatitis_b_with_delta", study_info = list(reported_trait = "Hepatitis B with delta", first_author = "Abhijith", pubmed_id="TBD")),
-  "hepatitis_b" = list(id = "hepatitis_b", trait = "Hepatitis B", table_name = "hepatitis_b", study_info = list(reported_trait = "Hepatitis B", first_author = "Abhijith", pubmed_id="TBD")),
-  "chronic_hepatitis_c" = list(id = "chronic_hepatitis_c", trait = "Chronic Hepatitis C", table_name = "chronic_hepatitis_c", study_info = list(reported_trait = "Chronic Hepatitis C", first_author = "Abhijith", pubmed_id="TBD")),
-  "acute_hepatitis_c" = list(id = "acute_hepatitis_c", trait = "Acute Hepatitis C", table_name = "acute_hepatitis_c", study_info = list(reported_trait = "Acute Hepatitis C", first_author = "Abhijith", pubmed_id="TBD")),
-  "hepatitis_c" = list(id = "hepatitis_c", trait = "Hepatitis C", table_name = "hepatitis_c", study_info = list(reported_trait = "Hepatitis C", first_author = "Abhijith", pubmed_id="TBD")),
-  "hepatovirus" = list(id = "hepatovirus", trait = "Hepatovirus", table_name = "hepatovirus", study_info = list(reported_trait = "Hepatovirus", first_author = "Abhijith", pubmed_id="TBD")),
-  "molluscum_cont" = list(id = "molluscum_cont", trait = "Molluscum Contagiosum", table_name = "molluscum_cont", study_info = list(reported_trait = "Molluscum Contagiosum Infection", first_author = "Abhijith", pubmed_id="TBD")),
-  "poxvirus" = list(id = "poxvirus", trait = "Poxvirus", table_name = "poxvirus", study_info = list(reported_trait = "Poxvirus", first_author = "Abhijith", pubmed_id="TBD")),
-  "plantar_wart" = list(id = "plantar_wart", trait = "Plantar Warts", table_name = "plantar_wart", study_info = list(reported_trait = "Plantar Warts", first_author = "Abhijith", pubmed_id="TBD")),
-  "anogenital_warts" = list(id = "anogenital_warts", trait = "Anogenital [venereal] warts", table_name = "anogenital_warts", study_info = list(reported_trait = "Anogenital/Venereal Warts", first_author = "Abhijith", pubmed_id="TBD")),
-  "hpv" = list(id = "hpv", trait = "Human Papillomavirus", table_name = "hpv", study_info = list(reported_trait = "Human Papillomavirus", first_author = "Abhijith", pubmed_id="TBD")),
-  "hiv" = list(id = "hiv", trait = "Human Immunodeficiency Virus", table_name = "hiv", study_info = list(reported_trait = "HIV", first_author = "Abhijith", pubmed_id="TBD")),
-  "retrovirus" = list(id = "retrovirus", trait = "Retrovirus", table_name = "retrovirus", study_info = list(reported_trait = "Retrovirus", first_author = "Abhijith", pubmed_id="TBD")),
-  "pneumo" = list(id = "pneumo", trait = "Pneumoviridae", table_name = "pneumo", study_info = list(reported_trait = "Pneumoviridae", first_author = "Abhijith", pubmed_id="TBD")),
-  "cov2" = list(id = "cov2", trait = "Sars Cov 2*", table_name = "cov2", study_info = list(reported_trait = "Sars Cov 2*", first_author = "Abhijith", pubmed_id="TBD")),
-  "corona" = list(id = "corona", trait = "Coronavirus", table_name = "corona", study_info = list(reported_trait = "Coronavirus", first_author = "Abhijith", pubmed_id="TBD")),
-  "influenza" = list(id = "influenza", trait = "Influenza Virus", table_name = "influenza", study_info = list(reported_trait = "Influenza Virus", first_author = "Abhijith", pubmed_id="TBD")),
-  "other_viral" = list(id = "other_viral", trait = "Other specified viral infections", table_name = "other_viral", study_info = list(reported_trait = "Other Specified Viral Infections", first_author = "Abhijith", pubmed_id="TBD")),
-  "candidiasis" = list(id = "candidiasis", trait = "Candidiasis", table_name = "candidiasis", study_info = list(reported_trait = "Candidiasis", first_author = "Abhijith", pubmed_id="TBD")),
-  "aspergillosis" = list(id = "aspergillosis", trait = "Aspergillosis", table_name = "aspergillosis", study_info = list(reported_trait = "Aspergillosis", first_author = "Abhijith", pubmed_id="TBD")),
-  "pneumocystosis" = list(id = "pneumocystosis", trait = "Pneumocystosis", table_name = "pneumocystosis", study_info = list(reported_trait = "Pneumocystosis", first_author = "Abhijith", pubmed_id="TBD")),
-  "trichomoniasis" = list(id = "trichomoniasis", trait = "Tricomoniasis", table_name = "trichomoniasis", study_info = list(reported_trait = "Trichomoniasis", first_author = "Abhijith", pubmed_id="TBD")),
-  "toxoplasmosis" = list(id = "toxoplasmosis", trait = "Toxoplasmosis", table_name = "toxoplasmosis", study_info = list(reported_trait = "Toxoplasmosis", first_author = "Abhijith", pubmed_id="TBD")),
-  "giardiasis" = list(id = "giardiasis", trait = "Giardiasis", table_name = "giardiasis", study_info = list(reported_trait = "Giardiasis", first_author = "Abhijith", pubmed_id="TBD")),
-  "parasites" = list(id = "parasites", trait = "Parasites", table_name = "parasites", study_info = list(reported_trait = "Parasites", first_author = "Abhijith", pubmed_id="TBD")),
-  "pediculosis" = list(id = "pediculosis", trait = "Pediculosis", table_name = "pediculosis", study_info = list(reported_trait = "Pediculosis", first_author = "Abhijith", pubmed_id="TBD")),
-  "scabies" = list(id = "scabies", trait = "Scabies", table_name = "scabies", study_info = list(reported_trait = "Scabies", first_author = "Abhijith", pubmed_id="TBD")),
-  "pediculosis_acarisis_other" = list(id = "pediculosis_acarisis_other_infestations", trait = "Pediculosis, Acariasis, and Other Infestations", table_name = "pediculosis_acarisis_other", study_info = list(reported_trait = "Pediculosis, Acariasis, and others", first_author = "Abhijith", pubmed_id="TBD")),
-  "std" = list(id = "std", trait = "Sexually Transmitted Diseases", table_name = "std", study_info = list(reported_trait = "Sexually Transmitted Diseases", first_author = "Abhijith", pubmed_id="TBD")),
-  "bacterial_infections" = list(id = "bacterial_infections", trait = "Bacterial Infections", table_name = "bacterial_infections", study_info = list(reported_trait = "Bacterial Infections", first_author = "Abhijith", pubmed_id="TBD")),
-  "viral_infections" = list(id = "viral_infections", trait = "Viral Infections", table_name = "viral_infections", study_info = list(reported_trait = "Viral Infections", first_author = "Abhijith", pubmed_id="TBD")),
-  "fungal_infections" = list(id = "fungal_infections", trait = "Fungal Infections", table_name = "fungal_infections", study_info = list(reported_trait = "Fungal Infections", first_author = "Abhijith", pubmed_id="TBD")),
-  "infections" = list(id = "infections", trait = "Infections", table_name = "infections", study_info = list(reported_trait = "Infections", first_author = "Abhijith", pubmed_id="TBD")),
-  "gangrene" = list(id = "gangrene", trait = "Gangrene", table_name = "gangrene", study_info = list(reported_trait = "Gangrene", first_author = "Abhijith", pubmed_id="TBD")),
-  "systemic_inflammatory_response" = list(id = "systemic_inflammatory_response", trait = "Systemic Inflammatory Response", table_name = "systemic_inflammatory_response", study_info = list(reported_trait = "Systemic Inflammatory Response", first_author = "Abhijith", pubmed_id="TBD")),
-  "sepsis" = list(id = "sepsis", trait = "Sepsis", table_name = "sepsis", study_info = list(reported_trait = "Sepsis", first_author = "Abhijith", pubmed_id="TBD")),
-  "bacteremia" = list(id = "bacteremia", trait = "Bacteremia", table_name = "bacteremia", study_info = list(reported_trait = "Bacteremia", first_author = "Abhijith", pubmed_id="TBD")),
-  "bacteremia_sepsis_sirs" = list(id = "bacteremia_sepsis_sirs", trait = "Bacteremia, Sepsis, and SIRS", table_name = "bacteremia_sepsis_sirs", study_info = list(reported_trait = "Bacteremia, Sepsis, and SIRS", first_author = "Abhijith", pubmed_id="TBD")),
-  "mrsa" = list(id = "mrsa", trait = "MRSA", table_name = "mrsa", study_info = list(reported_trait = "MRSA", first_author = "Abhijith", pubmed_id="TBD")),
-  "beta_lactam_resistance" = list(id = "beta_lactam_resistance", trait = "Resistance to beta-lactam antibiotics", table_name = "beta_lactam_resistance", study_info = list(reported_trait = "Resistance to beta-lactam antibiotics", first_author = "Abhijith", pubmed_id="TBD")),
-  "drug_resistance" = list(id = "drug_resistant_microorganisms", trait = "Drug Resistant Microorganisms", table_name = "drug_resistance", study_info = list(reported_trait = "Drug Resistant Microorganisms", first_author = "Abhijith", pubmed_id="TBD"))
+  list(id = "staph_aureus", trait = "Staph Aureus"),
+  list(id = "staphylococcus", trait = "Staphylococcus"),
+  list(id = "escherichia_coli", trait = "Escherichia Coli"),
+  list(id = "group_a_streptococcus", trait = "Group A Streptococcus"),
+  list(id = "group_b_streptococcus", trait = "Group B Streptococcus"),
+  list(id = "streptococcus", trait = "Streptococcus"),
+  list(id = "mycobacterium_tuberculosis", trait = "Mycobacterium Tuberculosis"),
+  list(id = "mycobacteria", trait = "Mycobacteria"),
+  list(id = "neisseria_gonorrhea", trait = "Neisseria Gonorrhea"),
+  list(id = "neisseria", trait = "Neisseria"),
+  list(id = "H_pylori", trait = "H. pylori"),
+  list(id = "clostridium_difficile", trait = "Clostridium Difficile"),
+  list(id = "clostridium", trait = "Clostridium"),
+  list(id = "chlamydia_trachomatis", trait = "Chlamydia Trachomatis"),
+  list(id = "chlamydia", trait = "Chlamydia"),
+  list(id = "treponema_pallidum", trait = "Treponema Pallidum (Syphilis)"),
+  list(id = "treponema", trait = "Treponema"),
+  list(id = "lyme_disease", trait = "Lyme Disease"),
+  list(id = "borrelia", trait = "Borrelia"),
+  list(id = "enterovirus", trait = "Enterovirus"),
+  list(id = "herpes_simplex", trait = "Herpes Simplex"),
+  list(id = "varicella_chickenpox", trait = "Varicella (Chickenpox)"),
+  list(id = "herpes_zoster", trait = "Herpes Zoster"),
+  list(id = "varicella_zoster", trait = "Varicella Zoster Virus"),
+  list(id = "infectious_mono", trait = "Infectious Mononucleosis"),
+  list(id = "cytomegalovirus", trait = "Cytomegalovirus (CMV)"),
+  list(id = "herpesvirus", trait = "Herpesvirus"),
+  list(id = "hepatitis_a", trait = "Hepatitis A"),
+  list(id = "hepatitis_b_with_delta", trait = "Hepatitis B with Delta"),
+  list(id = "hepatitis_b", trait = "Hepatitis B"),
+  list(id = "chronic_hepatitis_c", trait = "Chronic Hepatitis C"),
+  list(id = "acute_hepatitis_c", trait = "Acute Hepatitis C"),
+  list(id = "hepatitis_c", trait = "Hepatitis C"),
+  list(id = "hepatovirus", trait = "Hepatovirus"),
+  list(id = "molluscum_cont", trait = "Molluscum Contagiosum"),
+  list(id = "poxvirus", trait = "Poxvirus"),
+  list(id = "plantar_wart", trait = "Plantar Wart"),
+  list(id = "anogenital_warts", trait = "Anogenital Warts"),
+  list(id = "hpv", trait = "Human Papillomavirus"),
+  list(id = "hiv", trait = "Human Immunodeficiency Virus"),
+  list(id = "retrovirus", trait = "Retrovirus"),
+  list(id = "pneumo", trait = "Pneumoviridae"),
+  list(id = "cov2", trait = "Sars-CoV-2"),
+  list(id = "corona", trait = "Coronavirus"),
+  list(id = "influenza", trait = "Influenza Virus"),
+  list(id = "other_viral", trait = "Other Specified Viral Infections"),
+  list(id = "candidiasis", trait = "Candidiasis"),
+  list(id = "aspergillosis", trait = "Aspergillosis"),
+  list(id = "pneumocystosis", trait = "Pneumocystosis"),
+  list(id = "trichomoniasis", trait = "Trichomoniasis"),
+  list(id = "toxoplasmosis", trait = "Toxoplasmosis"),
+  list(id = "giardiasis", trait = "Giardiasis"),
+  list(id = "parasites", trait = "Parasites"),
+  list(id = "pediculosis", trait = "Pediculosis"),
+  list(id = "scabies", trait = "Scabies"),
+  list(id = "pediculosis_acarisis_other", trait = "Pediculosis, Acariasis, Other"),
+  list(id = "std", trait = "Sexually Transmitted Disease"),
+  list(id = "bacterial_infections", trait = "Bacterial Infections"),
+  list(id = "viral_infections", trait = "Viral Infections"),
+  list(id = "fungal_infections", trait = "Fungal Infections"),
+  list(id = "infections", trait = "Infections"),
+  list(id = "gangrene", trait = "Gangrene"),
+  list(id = "systemic_inflammatory_response", trait = "Systemic Inflammatory Response"),
+  list(id = "sepsis", trait = "Sepsis"),
+  list(id = "bacteremia", trait = "Bacteremia"),
+  list(id = "bacteremia_sepsis_sirs", trait = "Bacteremia, Sepsis, and SIRS"),
+  list(id = "mrsa", trait = "Methicillin-resistant Staphylococcus aureus"),
+  list(id = "beta_lactam_resistance", trait = "Resistance to Beta-lactam Antibiotics"),
+  list(id = "drug_resistance", trait = "Drug Resistant Microorganisms")
 )
+
+
 
 # --- 3. UI ---
 ui <- page_sidebar(
-  theme = bs_theme(version = 5, bootswatch = "flatly", primary = "#007bff"),
+  theme = bs_theme(version = 5, bootswatch = "flatly"),
   title = "GWAS Viewer",
   sidebar = sidebar(
-    selectInput("phenotype_selector", h4("Select a Study"),
+    selectInput("study_selector", h4("Select a Study"),
                 choices = setNames(sapply(dataset_catalog, `[[`, "id"), sapply(dataset_catalog, `[[`, "trait"))),
     hr(),
-    h4("Filters"),
-    textInput("chr_search", "Search by Chromosome:", placeholder = "e.g., 1 or X"),
-    numericInput("pos_search", "Search by Position (HG38):", value = NULL, min = 0),
-    sliderInput("p_threshold", "Significance Threshold (-log10 P):", min = 0, max = 30, value = 3.5, step = 0.1),
-    hr(),
-    actionButton("apply_filters_button", "Apply Filters", class = "btn-primary w-100")
+    h4("Cross-Phenotype Search"),
+    textInput("chr_search", "Chromosome:", placeholder = "e.g., 1 or X"),
+    numericInput("pos_search", "Position (HG38):", value = NULL, min = 0),
+    actionButton("search_snp_button", "Search Location", class = "btn-success w-100")
   ),
-  # REMOVED the "Study Info" tab
   navset_card_tab(
     id = "main_tabs",
-    nav_panel("Manhattan Plot", shinycssloaders::withSpinner(plotlyOutput("manhattan_plot", height = "500px"))),
-    nav_panel("QQ Plot", 
-              card(
-                card_header(uiOutput("qq_plot_header")),
-                # NEW: Added a button to trigger the QQ plot
-                actionButton("generate_qq_button", "Generate QQ Plot", class="btn-info mb-3"),
-                shinycssloaders::withSpinner(plotlyOutput("qq_plot", height = "500px"))
-              )
-    ),
-    nav_panel("Summary Data", card(card_header(uiOutput("summary_data_header")), shinycssloaders::withSpinner(DT::dataTableOutput("results_table")))),
-    nav_panel("Cross-Phenotype Search", card(card_header("Cross-Phenotype SNP Search Results"), shinycssloaders::withSpinner(DT::dataTableOutput("cross_pheno_table"))))
-  )
+    nav_panel("Manhattan Plot", 
+              withSpinner(imageOutput("manhattan_plot", height = "600px"))),
+    nav_panel("QQ Plot", shinycssloaders::withSpinner(imageOutput("qq_plot", height = "600px"))),
+    nav_panel("Summary Data", card(
+withSpinner(DT::dataTableOutput("results_table"))
+)),
+    nav_panel("Cross-Phenotype Search", card(
+            card_header("Results for Searched SNP"), withSpinner(DT::dataTableOutput("cross_pheno_table")),
+downloadButton("download_cross_pheno", "Download Results", class = "btn-success mt-3")
+  )),
+nav_panel("Citations & Data",
+          h4("Data Attribution"),
+          p("If you use data or images from this tool, please cite...")
 )
-
+)
+)
 # --- 4. SERVER ---
 server <- function(input, output, session) {
+  API_BASE_URL <- "https://rstudio-connect.hpc.mssm.edu/content/10224b5c-2e87-40ca-8125-ccceeb957d77/"
+  chr_map <- readRDs("chr_map.rds")
   
-  # This reactive handles the main data filtering for the Manhattan plot
-  manhattan_data <- eventReactive(input$apply_filters_button, {
+  output$manhattan_plot <- renderImage({
+    req(input$study_selector)
+    list(src = file.path("www", paste0(input$study_selector, ".png")),
+         contentType = 'image/png') 
+  }, deleteFile = FALSE)
     
-    id <- showNotification("Querying database for plot...", type = "message", duration = NULL)
-    on.exit(removeNotification(id), add = TRUE)
-    
-    table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
-    
-    # --- NEW, ROBUST QUERY LOGIC (HYBRID APPROACH) ---
-    message("Fetching a broad chunk of data from the database...")
-    
-    # 1. Fetch a large, pre-filtered chunk from the database.
-    #    This query is simple and less likely to fail.
-    sql_query_broad <- paste("SELECT * FROM", DBI::dbQuoteIdentifier(con, table_name), "WHERE LOG10P >= 2")
-    broad_results <- dbGetQuery(con, sql_query_broad)
-    message(paste("Fetched", nrow(broad_results), "rows with LOG10P >= 2."))
-    
-    # 2. Perform the precise filtering and sampling in R, which is more reliable.
-    significant_points <- broad_results %>% filter(LOG10P >= input$p_threshold)
-    
-    nonsignificant_points <- broad_results %>% 
-      filter(LOG10P < input$p_threshold) %>%
-      group_by(floor(LOG10P)) %>%
-      slice_sample(n = 2000, replace = TRUE) %>%
-      ungroup()
-    
-    # 3. Combine them in R
-    results <- bind_rows(significant_points, nonsignificant_points)
-    
-    message("Plot query complete. Rows returned: ", nrow(results))
-    
-    # Perform final data prep on the returned dataset
-    if (nrow(results) > 0) {
-      final_data <- results %>%
-        rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
-        mutate(Original_CHR = as.character(CHR)) %>%
-        mutate(Cleaned_CHR_temp = toupper(gsub("^chr", "", CHR))) %>%
-        mutate(CHR = case_when(Cleaned_CHR_temp == "X" ~ 23, Cleaned_CHR_temp == "Y" ~ 24, Cleaned_CHR_temp == "MT" ~ 25, grepl("^[0-9]+$", Cleaned_CHR_temp) ~ as.numeric(Cleaned_CHR_temp), TRUE ~ NA_real_)) %>%
-        select(-Cleaned_CHR_temp) %>%
-        filter(!is.na(CHR))
-      
-      axis_info <- final_data %>%
-        group_by(CHR) %>%
-        summarise(max_bp = max(BP, na.rm = TRUE), .groups = 'drop') %>%
-        mutate(bp_add = lag(cumsum(as.numeric(max_bp)), default = 0))
-      
-      final_data <- final_data %>%
-        left_join(axis_info %>% select(CHR, bp_add), by = "CHR") %>%
-        mutate(BP_cum = BP + bp_add)
-      
-      return(final_data)
-    } else {
-      return(data.frame()) 
-    }
-    
-  }, ignoreNULL = FALSE)
+  output$qq_plot <- renderImage({
+    req(input$study_selector)
+    list(src = file.path("www", paste0("qq_", input$study_selector, ".png")),
+         contentType = 'image/png')
+  }, deleteFile = FALSE)
   
-  # --- NEW: This reactive handles the cross-phenotype search by Chromosome and Position ---
-  cross_pheno_data <- eventReactive(input$apply_filters_button, {
-    # Only run if both search boxes have a value
-    req(input$chr_search != "", !is.na(input$pos_search)) 
-    
-    id <- showNotification("Searching all phenotypes for coordinate...", type = "message", duration = NULL)
-    on.exit(removeNotification(id), add = TRUE)
-    
-    # Prepare search terms
-    search_chr_raw <- input$chr_search
-    search_pos <- input$pos_search
-    
-    # Clean the chromosome input to match the database format
-    search_chr_cleaned <- toupper(gsub("^chr", "", search_chr_raw))
-    search_chr_numeric <- case_when(
-      search_chr_cleaned == "X" ~ 23,
-      search_chr_cleaned == "Y" ~ 24,
-      search_chr_cleaned == "MT" ~ 25,
-      grepl("^[0-9]+$", search_chr_cleaned) ~ as.numeric(search_chr_cleaned),
-      TRUE ~ NA_real_
-    )
-    
-    req(!is.na(search_chr_numeric)) # Stop if chromosome is invalid
-    
-    all_results <- map_dfr(dataset_catalog, function(dataset) {
-      
-      table_name <- dataset$table_name
-      trait_name <- dataset$trait
-      
-      # Build a query that searches by Chromosome AND Position
-      sql_query <- paste0("SELECT * FROM ", DBI::dbQuoteIdentifier(con, table_name), " WHERE Chromosome = ? AND Position = ?")
-      
-      res <- tryCatch({
-        dbGetQuery(con, sql_query, params = list(search_chr_numeric, search_pos))
-      }, error = function(e) {
-        message("Error querying table: ", table_name, " - ", e$message)
-        return(NULL)
-      })
-      
-      if (!is.null(res) && nrow(res) > 0) {
-        res <- res %>% mutate(Trait = trait_name)
-        return(res)
-      } else {
-        return(NULL)
-      }
+  summary_data <- reactive({
+    req(input$study_selector)
+    api_url <- paste0(API_BASE_URL, "/top_results?phenoId=", input$study_selector)
+    tryCatch({
+      fromJSON(content(GET(api_url), "text", encoding = "UTF-8"))
+    }, error = function(e) {
+      data.frame(Status = paste("Could not retrieve data. Is the API running? Error:", e$message))
     })
     
-    # --- NEW: Sort the final results by -log10(P) ---
-    if (nrow(all_results) > 0) {
-      all_results <- all_results %>% arrange(desc(LOG10P))
-    }
+  output$summary_table <- DT::renderDataTable({datatable(summary_data()) })
+    output$summary_download_link <- renderUI({
+      a("Download Full Summary Statistics Here", href="YOUR_LINK_HERE", target="_blank")
+    })
     
-    return(all_results)
-  })
-  
-  # This reactive handles the QQ Plot data generation
-  qq_plot_data <- eventReactive(input$generate_qq_button, {
     
-    id <- showNotification("Generating QQ Plot...", type = "message", duration = NULL)
-    on.exit(removeNotification(id), add = TRUE)
+  cross_pheno_results <- eventReactive(input$search_button, {
+    req(input$chr_search, input$pos_search)
+    api_url <- paste0(API_BASE_URL, "/phewas?chromosome=", input$chr_search, "&position=", input$pos_search)
+    tryCatch({
+      fromJSON(content(GET(api_url), "text", encoding = "UTF-8"))
+    }, error = function(e) {
+      data.frame(Status = paste("Couldnt retrieve data, is API running? error: ", e$message))
+    })
+    })
     
-    table_name <- dataset_catalog[[input$phenotype_selector]]$table_name
-    
-    # NEW: Reduced sample size for QQ plot to improve performance
-    qq_sql <- paste("SELECT P_value FROM", DBI::dbQuoteIdentifier(con, table_name), "ORDER BY RANDOM() LIMIT 50000")
-    qq_data <- dbGetQuery(con, qq_sql)
-    
-    observed <- -log10(sort(qq_data$P_value))
-    expected <- -log10(ppoints(length(observed)))
-    
-    qq_df <- data.frame(expected, observed)
-    return(qq_df)
-  })
-  
-  # --- All the output$ blocks ---
-  
-  output$manhattan_plot_header <- renderUI({ h4(paste("Manhattan Plot -", dataset_catalog[[input$phenotype_selector]]$trait)) })
-  output$qq_plot_header <- renderUI({ h4(paste("QQ Plot -", dataset_catalog[[input$phenotype_selector]]$trait)) })
-  output$summary_data_header <- renderUI({ h5("Summary Data Table (filtered by p-value)") })
-  
-  output$manhattan_plot <- renderPlotly({
-    plot_data <- manhattan_data()
-    if (nrow(plot_data) == 0) {
-      return(plotly_empty(type = "scatter", mode = "markers") %>% layout(title = "No significant SNPs found with current filters."))
-    }
-    
-    axis_set <- plot_data %>%
-      group_by(CHR) %>%
-      summarise(center = mean(BP_cum, na.rm = TRUE), Original_CHR = first(Original_CHR), .groups = 'drop') %>%
-      arrange(CHR)
-    
-    p <- ggplot(plot_data, aes(x = BP_cum, y = LOG10P, text = paste("SNP:", SNP, "<br>P:", formatC(P, format="e", digits=2)))) + 
-      geom_point(aes(color = as.factor(CHR %% 2)), alpha = 0.8, size = 1.5) +
-      geom_hline(yintercept = input$p_threshold, color = "red", linetype = "dashed") +
-      scale_color_manual(values = c("0" = "#27647B", "1" = "#56B4E9")) +
-      scale_x_continuous(label = axis_set$Original_CHR, breaks = axis_set$center) +
-      labs(x = "Chromosome", y = "-log10(P-value)") +
-      theme_minimal() +
-      theme(legend.position = "none", panel.grid.major.x = element_blank(), panel.grid.minor.x = element_blank())
-    
-    ggplotly(p, tooltip = "text")
-  })
-  
-  output$qq_plot <- renderPlotly({
-    qq_df <- qq_plot_data()
-    
-    p <- ggplot(qq_df, aes(x=expected, y=observed)) +
-      geom_point(alpha=0.5, color="#27647B") +
-      geom_abline(intercept=0, slope=1, color="red") +
-      labs(x = "Expected -log10(P)", y = "Observed -log10(P)") +
-      theme_minimal()
-    
-    ggplotly(p)
-  })
-  
-  # This table shows the filtered data for the selected phenotype
-  output$results_table <- DT::renderDataTable({
-    table_data <- manhattan_data()
-    req(nrow(table_data) > 0)
-    
-    table_data %>%
-      arrange(desc(LOG10P)) %>%
-      select(SNP, CHR, BP, P, LOG10P, A1, A2, FREQ_A1, EFFECT_A1, SE) %>%
-      mutate(P = formatC(P, format = "e", digits = 2), across(where(is.numeric), ~round(., 4)))
-  }, options = list(pageLength = 10, scrollX = TRUE), server = FALSE)
-  
-  # This NEW table shows the results of the cross-phenotype search
   output$cross_pheno_table <- DT::renderDataTable({
-    req(nrow(cross_pheno_data()) > 0)
+    datatable(cross_pheno_results())})
     
-    cross_pheno_data() %>%
-      rename(SNP = MarkerName, CHR = Chromosome, BP = Position, P = P_value, A1 = Allele1, A2 = Allele2, FREQ_A1 = Freq1, EFFECT_A1 = Effect, SE = StdErr) %>%
-      select(Trait, SNP, CHR, BP, P, LOG10P, A1, A2, FREQ_A1, EFFECT_A1, SE) %>%
-      mutate(P = formatC(P, format = "e", digits = 2), across(where(is.numeric), ~round(., 4)))
-  }, options = list(pageLength = 10, scrollX = TRUE, filter = 'top'))
   
-}
-
+  output$download_cross_pheno <- downloadHandler(
+    filename = function() {
+      paste0("cross-pheno-results-chr", input$chr_search, "-", input$pos_search, ".csv")
+    },
+  
+    content = function(file){
+      write.csv(cross_pheno_results(), file, row.names = FALSE)
+    }
+  )
+}}
+ 
 # --- 5. RUN ---
 shinyApp(ui, server)
