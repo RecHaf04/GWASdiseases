@@ -4,15 +4,11 @@
 library(shiny)
 library(bslib)
 library(dplyr)
-library(ggplot2)
-library(plotly)
 library(DT)
-library(DBI)
-library(RSQLite)
-library(purrr) 
 library(shinycssloaders)
 library(httr)
 library(jsonlite)
+library(htmlwidgets)
 
 
 dataset_catalog <- list(
@@ -86,8 +82,7 @@ dataset_catalog <- list(
   list(id = "beta_lactam_resistance", trait = "Resistance to Beta-lactam Antibiotics"),
   list(id = "drug_resistance", trait = "Drug Resistant Microorganisms")
 )
-
-
+chr_map <- readRDS("chr_map.rds")
 
 # --- 3. UI ---
 ui <- page_sidebar(
@@ -96,19 +91,27 @@ ui <- page_sidebar(
   sidebar = sidebar(
     selectInput("study_selector", h4("Select a Study"),
                 choices = setNames(sapply(dataset_catalog, `[[`, "id"), sapply(dataset_catalog, `[[`, "trait"))),
+                
     hr(),
     h4("Cross-Phenotype Search"),
     textInput("chr_search", "Chromosome:", placeholder = "e.g., 1 or X"),
     numericInput("pos_search", "Position (HG38):", value = NULL, min = 0),
-    actionButton("search_snp_button", "Search Location", class = "btn-success w-100")
+    actionButton("search_snp_button", "Search Location", class = "btn-success w-100"),
+    actionButton("test_connection_button", "test external econnection")
   ),
   navset_card_tab(
     id = "main_tabs",
     nav_panel("Manhattan Plot", 
-              withSpinner(imageOutput("manhattan_plot", height = "600px"))),
-    nav_panel("QQ Plot", shinycssloaders::withSpinner(imageOutput("qq_plot", height = "600px"))),
+              withSpinner(imageOutput("manhattan_plot", height = "auto", click = "manhattan_click")),
+              hr(),
+              h4("Significant SNPs (P < 1e-5) in Clicked Region"),
+              withSpinner(DT::dataTableOutput("peak_info_table"))
+    ),
+    nav_panel("QQ Plot", withSpinner(imageOutput("qq_plot", height = "auto"))),
     nav_panel("Summary Data", card(
-withSpinner(DT::dataTableOutput("results_table"))
+      card_header("Top Significant Hits"),
+      htmlOutput("summary_download_link"),
+withSpinner(DT::dataTableOutput("summary_table"))
 )),
     nav_panel("Cross-Phenotype Search", card(
             card_header("Results for Searched SNP"), withSpinner(DT::dataTableOutput("cross_pheno_table")),
@@ -116,66 +119,97 @@ downloadButton("download_cross_pheno", "Download Results", class = "btn-success 
   )),
 nav_panel("Citations & Data",
           h4("Data Attribution"),
-          p("If you use data or images from this tool, please cite...")
-)
+          p("If you use data or images from this tool, please cite..."))
 )
 )
 # --- 4. SERVER ---
 server <- function(input, output, session) {
-  API_BASE_URL <- "https://rstudio-connect.hpc.mssm.edu/content/10224b5c-2e87-40ca-8125-ccceeb957d77/"
-  chr_map <- readRDs("chr_map.rds")
+  API_BASE_URL <- "https://rstudio-connect.hpc.mssm.edu/content/10224b5c-2e87-40ca-8125-ccceeb957d77"
+  chr_map <- readRDS("chr_map.rds")
   
+  observeEvent(input$test_connection_button, {
+    message("testing external connection")
+    tryCatch({
+      response <- httr::GET("https://httpbin.org/get")
+      message("connection success, status: ", httr:status_code(response))
+    }, error = function(e) {
+      message("connection failed, error: ", e$message)
+   
+    })
+  })
   output$manhattan_plot <- renderImage({
     req(input$study_selector)
     list(src = file.path("www", paste0(input$study_selector, ".png")),
-         contentType = 'image/png') 
+         contentType = 'image/png', width = "100%", height = "auto") 
   }, deleteFile = FALSE)
     
   output$qq_plot <- renderImage({
     req(input$study_selector)
     list(src = file.path("www", paste0("qq_", input$study_selector, ".png")),
-         contentType = 'image/png')
+         contentType = 'image/png', width = "100%", height = "auto")
   }, deleteFile = FALSE)
   
+  
+  clicked_snp_data <- eventReactive(input$manhattan_click, {
+    req(input$manhattan_click)
+    clicked_bp_cum <- input$manhattan_click$x
+    
+    clicked_chr_info <- chr_map %>%
+      filter(total <= clicked_bp_cum) %>%
+      filter(Chr_numeric == max(Chr_numeric))
+    clicked_chr <- clicked_chr_info$Chromosome
+    real_pos <- round(clicked_bp_cum - clicked_chr_info$total)
+    
+    api_url <- paste0(API_BASE_URL, "phewas?chromosome=", clicked_chr, "&position=", real_pos)
+    
+    tryCatch({
+      fromJSON(content(GET(api_url), "text", encoding = "UTF-8"))
+    }, error = function(e) {
+      data.frame(Status = "Could not get click results from API.")
+    })
+  })
+  
+  output$peak_info_table <- DT::renderDataTable({
+    datatable(clicked_snp_data(), options = list(pageLength = 5))
+  })
+    
   summary_data <- reactive({
     req(input$study_selector)
-    api_url <- paste0(API_BASE_URL, "/top_results?phenoId=", input$study_selector)
+    api_url <- paste0(API_BASE_URL, "summary_data?phenoId=", input$study_selector)
     tryCatch({
       fromJSON(content(GET(api_url), "text", encoding = "UTF-8"))
     }, error = function(e) {
-      data.frame(Status = paste("Could not retrieve data. Is the API running? Error:", e$message))
+      data.frame(Status = "Could not retrieve data from API.")
     })
-    
-  output$summary_table <- DT::renderDataTable({datatable(summary_data()) })
-    output$summary_download_link <- renderUI({
-      a("Download Full Summary Statistics Here", href="YOUR_LINK_HERE", target="_blank")
-    })
-    
+  })
+ output$summary_table <- DT::renderDataTable({ datatable(summary_data()) })
+  
+  output$summary_download_link <- renderUI({
+    a("Download Full Summary Statistics Here", href = "YOUR_LINK_HERE", target = "_blank")
+  })
     
   cross_pheno_results <- eventReactive(input$search_button, {
-    req(input$chr_search, input$pos_search)
-    api_url <- paste0(API_BASE_URL, "/phewas?chromosome=", input$chr_search, "&position=", input$pos_search)
+    req(input$search_chr, input$search_pos)
+    api_url <- paste0(API_BASE_URL, "phewas?chromosome=", input$search_chr, "&position=", input$search_pos)
     tryCatch({
       fromJSON(content(GET(api_url), "text", encoding = "UTF-8"))
     }, error = function(e) {
-      data.frame(Status = paste("Couldnt retrieve data, is API running? error: ", e$message))
+      data.frame(Status = "Could not retrieve data from API.")
     })
-    })
+  })
     
-  output$cross_pheno_table <- DT::renderDataTable({
-    datatable(cross_pheno_results())})
-    
+ output$cross_pheno_table <- DT::renderDataTable({
+   datatable(cross_pheno_results(), options = list(pageLength = 10))
+ })
   
   output$download_cross_pheno <- downloadHandler(
     filename = function() {
-      paste0("cross-pheno-results-chr", input$chr_search, "-", input$pos_search, ".csv")
+      paste0("cross-pheno-results-chr", input$search_chr, "_", input$search_pos, ".csv")
     },
-  
-    content = function(file){
-      write.csv(cross_pheno_results(), file, row.names = FALSE)
-    }
+content = function(file) {
+  write.csv(cross_pheno_results(), file, row.names = FALSE)
+}
   )
-}}
- 
 # --- 5. RUN ---
+}
 shinyApp(ui, server)
