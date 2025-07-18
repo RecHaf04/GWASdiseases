@@ -8,7 +8,9 @@ Once you have those files all arranged nicely in one sqlite database:
 ***Source render_all_plots
 ***Source prepare_summary_data
 ***Source prepare_cross_pheno_data
-This will make pngs for Manhattan Plots and QQplots, make summary .rds files for summary data, and make .rds files seperated by dataset and chromosome to allow for chunked crossDB search 
-rerun the prep_API script, deploy API, put API link in app.R file and deploy app.R
+***Add names of new datasets into app.R
+Deploy API (backend_api folder with plumber.R and folders full of .rds files)
+Deploy App (shiny_frontend folder with app.R and folder full of .png files
+
 
 Yay. call me if you have issues.
